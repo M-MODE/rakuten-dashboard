@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>楽天市場 データ分析ダッシュボード</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #bf0000 0%, #e60012 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .upload-section {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: white;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            border-color: #bf0000;
+            background: #f8f9fa;
+        }
+        
+        .upload-area.dragging {
+            background: #e7f3ff;
+            border-color: #007bff;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            font-size: 18px;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .files-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .files-modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 80%;
+            max-width: 900px;
+            max-height: 70vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .files-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .files-modal-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .close-modal {
+            font-size: 28px;
+            font-weight: bold;
+            color: #999;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .close-modal:hover {
+            color: #333;
+        }
+        
+        .view-files-btn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .view-files-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .uploaded-files {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .file-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+        
+        .file-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .file-date {
+            font-size: 12px;
+            color: #6c757d;
+        }
+        
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .remove-btn:hover {
+            background: #c82333;
+        }
+        
+        .period-selector {
+            padding: 30px;
+            background: white;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .period-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #212529;
+        }
+        
+        .period-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .period-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .period-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .period-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .comparison-mode {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-top: 15px;
+        }
+        
+        .comparison-label {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .card-title {
+            font-size: 14px;
+            color: #6c757d;
+            margin-bottom: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .card-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #212529;
+            margin-bottom: 5px;
+        }
+        
+        .card-change {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .card-change.positive {
+            color: #28a745;
+        }
+        
+        .card-change.negative {
+            color: #dc3545;
+        }
+        
+        .table-section {
+            padding: 30px;
+        }
+        
+        .table-controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .main-table-wrapper {
+            overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        
+        .main-table-wrapper table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .main-table-wrapper thead {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .main-table-wrapper th {
+            position: sticky;
+            top: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            z-index: 15;
+        }
+        
+        .search-box, .filter-select {
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .search-box:focus, .filter-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        .download-btn, .save-btn, .trend-btn {
+            padding: 10px 20px;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .download-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+        
+        .save-btn {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        }
+        
+        .trend-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .download-btn:hover, .save-btn:hover, .trend-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        table {
+            width: 100%;
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        th:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+        }
+        
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .product-name {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .number {
+            text-align: right;
+            font-weight: 600;
+        }
+        
+        .percent {
+            text-align: right;
+        }
+        
+        .positive-metric {
+            color: #28a745;
+            font-weight: 600;
+        }
+        
+        .negative-metric {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        
+        .comparison-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        
+        .comparison-value {
+            font-size: 11px;
+            color: #6c757d;
+        }
+        
+        .trend-section {
+            padding: 30px;
+            background: #f8f9fa;
+            display: none;
+        }
+        
+        .trend-search-box {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .trend-content {
+            display: none;
+        }
+        
+        .chart-container {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .trend-table-wrapper {
+            overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        
+        .trend-table-wrapper table {
+            position: relative;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .trend-table-wrapper thead {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .trend-table-wrapper th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: sticky;
+            top: 0;
+            z-index: 15;
+        }
+        
+        .trend-table-wrapper th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 25;
+        }
+        
+        .trend-table-wrapper td:first-child {
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 10;
+            box-shadow: 2px 0 4px rgba(0,0,0,0.05);
+        }
+        
+        @media (max-width: 768px) {
+            .summary-cards {
+                grid-template-columns: 1fr;
+            }
+            
+            table {
+                font-size: 11px;
+            }
+            
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 楽天市場 データ分析ダッシュボード</h1>
+            <p>複数期間の売上・アクセス・CVRデータを比較分析</p>
+        </div>
+        
+        <!-- CSVアップロードセクション -->
+        <div class="upload-section">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">CSVファイルをドラッグ＆ドロップ</div>
+                <div class="upload-hint">または、クリックしてファイルを選択</div>
+                <input type="file" id="fileInput" class="file-input" accept=".csv" multiple>
+            </div>
+            <button class="view-files-btn" id="viewFilesBtn">
+                <span>📂</span>
+                <span>アップロード済みファイルを表示 (<span id="fileCount">0</span>件)</span>
+            </button>
+        </div>
+        
+        <!-- ファイル一覧モーダル -->
+        <div id="filesModal" class="files-modal">
+            <div class="files-modal-content">
+                <div class="files-modal-header">
+                    <h2 class="files-modal-title">📂 アップロード済みファイル</h2>
+                    <button class="close-modal" id="closeModal">&times;</button>
+                </div>
+                <div class="uploaded-files" id="uploadedFiles"></div>
+            </div>
+        </div>
+        
+        <!-- 期間選択セクション -->
+        <div class="period-selector">
+            <div class="period-title">📅 期間選択</div>
+            <div class="period-buttons" id="periodButtons"></div>
+            <div class="comparison-mode">
+                <span class="comparison-label">比較モード:</span>
+                <button class="period-btn" id="compareBtn">前年同月比較</button>
+                <button class="period-btn" id="comparePrevBtn">前月比較</button>
+            </div>
+        </div>
+        
+        <!-- 商品推移分析セクション -->
+        <div class="trend-section" id="trendSection">
+            <div class="period-title">📈 商品推移分析</div>
+            <div class="trend-search-box">
+                <input type="text" class="search-box" id="trendSearchBox" placeholder="商品管理番号を入力（例: 092, m002）" style="max-width: 400px;">
+                <button class="trend-btn" id="showTrendBtn">
+                    <span>📈</span>
+                    <span>推移を表示</span>
+                </button>
+                <button class="period-btn" id="closeTrendBtn">閉じる</button>
+            </div>
+            <div class="trend-content" id="trendContent">
+                <div class="chart-container">
+                    <h3 id="trendProductName" style="margin-bottom: 20px; color: #212529;"></h3>
+                    <canvas id="trendChart" style="max-height: 400px;"></canvas>
+                </div>
+                <div class="trend-table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>期間</th>
+                                <th>商品名</th>
+                                <th>商品管理番号</th>
+                                <th>商品番号</th>
+                                <th>売上高</th>
+                                <th>売上件数</th>
+                                <th>アクセス</th>
+                                <th>転換率</th>
+                                <th>客単価</th>
+                                <th>レビュー獲得数</th>
+                                <th>レビュー取得率</th>
+                                <th>レビュー評価</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trendTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- サマリーカード -->
+        <div class="summary-cards">
+            <div class="card">
+                <div class="card-title">総売上高</div>
+                <div class="card-value" id="totalSales">¥0</div>
+                <div class="card-change" id="salesChange">データなし</div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">総売上件数</div>
+                <div class="card-value" id="totalOrders">0</div>
+                <div class="card-change" id="ordersChange">件</div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">平均転換率</div>
+                <div class="card-value" id="avgCVR">0%</div>
+                <div class="card-change" id="cvrChange">コンバージョン率</div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">総アクセス人数</div>
+                <div class="card-value" id="totalAccess">0</div>
+                <div class="card-change" id="accessChange">人</div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">平均客単価</div>
+                <div class="card-value" id="avgUnitPrice">¥0</div>
+                <div class="card-change" id="unitPriceChange">1件あたり</div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">総商品数</div>
+                <div class="card-value" id="totalProducts">0</div>
+                <div class="card-change" id="productsChange">アイテム</div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">レビュー獲得数</div>
+                <div class="card-value" id="totalReviews">0</div>
+                <div class="card-change" id="reviewsChange">件</div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">平均レビュー取得率</div>
+                <div class="card-value" id="avgReviewRate">0%</div>
+                <div class="card-change" id="reviewRateChange">投稿率</div>
+            </div>
+        </div>
+        
+        <!-- テーブルセクション -->
+        <div class="table-section">
+            <h2 style="margin-bottom: 20px; color: #212529;">商品詳細一覧</h2>
+            
+            <div class="table-controls">
+                <input type="text" class="search-box" id="searchBox" placeholder="🔍 商品名、商品管理番号、商品番号で検索...">
+                <select class="filter-select" id="sortSelect">
+                    <option value="">ソート条件を選択</option>
+                    <option value="sales-desc">売上高：高い順</option>
+                    <option value="sales-asc">売上高：低い順</option>
+                    <option value="cvr-desc">転換率：高い順</option>
+                    <option value="cvr-asc">転換率：低い順</option>
+                    <option value="access-desc">アクセス：多い順</option>
+                    <option value="access-asc">アクセス：少ない順</option>
+                    <option value="reviewPosted-desc">レビュー獲得数：多い順</option>
+                    <option value="reviewPosted-asc">レビュー獲得数：少ない順</option>
+                    <option value="review-desc">レビュー評価：高い順</option>
+                    <option value="review-asc">レビュー評価：低い順</option>
+                </select>
+                <button class="trend-btn" id="openTrendBtn">
+                    <span>📈</span>
+                    <span>商品推移分析</span>
+                </button>
+                <button class="download-btn" id="downloadCSV">
+                    <span>📥</span>
+                    <span>CSVダウンロード</span>
+                </button>
+                <button class="save-btn" id="saveData">
+                    <span>💾</span>
+                    <span>データ保存</span>
+                </button>
+            </div>
+            
+            <div class="main-table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>順位</th>
+                            <th>商品名</th>
+                            <th>商品管理番号</th>
+                            <th>商品番号</th>
+                            <th>売上高 ↕</th>
+                            <th>売上件数 ↕</th>
+                            <th>アクセス ↕</th>
+                            <th>転換率 ↕</th>
+                            <th>客単価 ↕</th>
+                            <th>レビュー獲得数 ↕</th>
+                            <th>レビュー取得率 ↕</th>
+                            <th>レビュー評価 ↕</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let allData = {};
+        let currentPeriod = null;
+        let comparisonPeriod = null;
+        let comparisonMode = null;
+        let trendChart = null;
+        
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const uploadedFilesDiv = document.getElementById('uploadedFiles');
+        const filesModal = document.getElementById('filesModal');
+        const viewFilesBtn = document.getElementById('viewFilesBtn');
+        const closeModal = document.getElementById('closeModal');
+        const fileCount = document.getElementById('fileCount');
+        
+        // モーダル開閉
+        viewFilesBtn.addEventListener('click', () => {
+            filesModal.style.display = 'block';
+        });
+        
+        closeModal.addEventListener('click', () => {
+            filesModal.style.display = 'none';
+        });
+        
+        window.addEventListener('click', (e) => {
+            if (e.target === filesModal) {
+                filesModal.style.display = 'none';
+            }
+        });
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragging');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragging');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragging');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                if (file.name.endsWith('.csv')) {
+                    parseCSVFile(file);
+                }
+            });
+        }
+        
+        function parseCSVFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split(/\r?\n/);
+                
+                let headerIndex = -1;
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].trim().startsWith('#,')) {
+                        headerIndex = i;
+                        break;
+                    }
+                }
+                
+                if (headerIndex === -1) {
+                    alert('CSVファイルのフォーマットが正しくありません');
+                    return;
+                }
+                
+                const csvData = lines.slice(headerIndex).join('\n');
+                
+                Papa.parse(csvData, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        const fileName = file.name;
+                        const period = extractPeriodFromFilename(fileName);
+                        
+                        if (!period) {
+                            alert(`ファイル名から期間を判定できません: ${fileName}\nファイル名を「YYYYMM_item_list.csv」形式にしてください`);
+                            return;
+                        }
+                        
+                        const products = results.data.filter(row => row['#'] && !isNaN(row['#'])).map(row => ({
+                            rank: parseInt(row['#']),
+                            name: row['商品名'] || '',
+                            productManagementNumber: row['商品管理番号'] || '',
+                            productNumber: row['商品番号'] || '',
+                            sales: parseInt((row['売上'] || '0').replace(/,/g, '')) || 0,
+                            salesCount: parseInt(row['売上件数']) || 0,
+                            access: parseInt((row['アクセス人数'] || '0').replace(/,/g, '')) || 0,
+                            cvr: parseFloat((row['転換率'] || '0').replace('%', '')) || 0,
+                            unitPrice: parseInt((row['客単価'] || '0').replace(/,/g, '')) || 0,
+                            reviewPosted: parseInt(row['レビュー投稿数']) || 0,
+                            reviewScore: parseFloat(row['レビュー総合評価（点）']) || 0,
+                            reviewCount: parseInt(row['総レビュー数']) || 0
+                        }));
+                        
+                        if (products.length === 0) {
+                            alert('有効なデータが見つかりませんでした');
+                            return;
+                        }
+                        
+                        allData[period] = products;
+                        addFileCard(fileName, period);
+                        updatePeriodButtons();
+                        
+                        if (!currentPeriod) {
+                            currentPeriod = period;
+                            updateDisplay();
+                        }
+                    }
+                });
+            };
+            reader.readAsText(file);
+        }
+        
+        function extractPeriodFromFilename(filename) {
+            const match = filename.match(/(\d{6})/);
+            return match ? match[1] : null;
+        }
+        
+        function formatPeriod(period) {
+            const year = period.substring(0, 4);
+            const month = period.substring(4, 6);
+            return `${year}年${parseInt(month)}月`;
+        }
+        
+        function addFileCard(fileName, period) {
+            const card = document.createElement('div');
+            card.className = 'file-card';
+            card.innerHTML = `
+                <div class="file-info">
+                    <div>
+                        <div class="file-name">📄 ${fileName}</div>
+                        <div class="file-date">${formatPeriod(period)}</div>
+                    </div>
+                </div>
+                <button class="remove-btn" onclick="removeData('${period}')">削除</button>
+            `;
+            uploadedFilesDiv.appendChild(card);
+            fileCount.textContent = Object.keys(allData).length;
+        }
+        
+        function removeData(period) {
+            delete allData[period];
+            if (currentPeriod === period) currentPeriod = null;
+            updatePeriodButtons();
+            updateFileCards();
+            updateDisplay();
+        }
+        
+        function updateFileCards() {
+            uploadedFilesDiv.innerHTML = '';
+            Object.keys(allData).forEach(period => {
+                addFileCard(`${period}_item_list.csv`, period);
+            });
+            fileCount.textContent = Object.keys(allData).length;
+        }
+        
+        function updatePeriodButtons() {
+            const periodButtons = document.getElementById('periodButtons');
+            periodButtons.innerHTML = '';
+            
+            const periods = Object.keys(allData).sort().reverse();
+            
+            periods.forEach(period => {
+                const btn = document.createElement('button');
+                btn.className = 'period-btn';
+                if (period === currentPeriod) btn.classList.add('active');
+                btn.textContent = formatPeriod(period);
+                btn.onclick = () => selectPeriod(period);
+                periodButtons.appendChild(btn);
+            });
+        }
+        
+        function selectPeriod(period) {
+            currentPeriod = period;
+            updatePeriodButtons();
+            updateDisplay();
+        }
+        
+        document.getElementById('compareBtn').addEventListener('click', () => {
+            if (!currentPeriod) {
+                alert('まず期間を選択してください');
+                return;
+            }
+            
+            const year = parseInt(currentPeriod.substring(0, 4));
+            const month = currentPeriod.substring(4, 6);
+            const lastYearPeriod = `${year - 1}${month}`;
+            
+            if (allData[lastYearPeriod]) {
+                comparisonMode = 'year';
+                comparisonPeriod = lastYearPeriod;
+                updateDisplay();
+            } else {
+                alert(`前年同月のデータ（${formatPeriod(lastYearPeriod)}）が見つかりません`);
+            }
+        });
+        
+        document.getElementById('comparePrevBtn').addEventListener('click', () => {
+            if (!currentPeriod) {
+                alert('まず期間を選択してください');
+                return;
+            }
+            
+            const year = parseInt(currentPeriod.substring(0, 4));
+            const month = parseInt(currentPeriod.substring(4, 6));
+            
+            let prevYear = year;
+            let prevMonth = month - 1;
+            
+            if (prevMonth === 0) {
+                prevYear = year - 1;
+                prevMonth = 12;
+            }
+            
+            const prevPeriod = `${prevYear}${String(prevMonth).padStart(2, '0')}`;
+            
+            if (allData[prevPeriod]) {
+                comparisonMode = 'month';
+                comparisonPeriod = prevPeriod;
+                updateDisplay();
+            } else {
+                alert(`前月のデータ（${formatPeriod(prevPeriod)}）が見つかりません`);
+            }
+        });
+        
+        function updateDisplay() {
+            if (!currentPeriod || !allData[currentPeriod]) return;
+            
+            updateSummaryCards();
+            renderTable();
+        }
+        
+        function updateSummaryCards() {
+            const currentData = allData[currentPeriod];
+            const comparisonData = comparisonPeriod ? allData[comparisonPeriod] : null;
+            
+            const totalSales = currentData.reduce((sum, p) => sum + p.sales, 0);
+            const totalOrders = currentData.reduce((sum, p) => sum + p.salesCount, 0);
+            const totalAccess = currentData.reduce((sum, p) => sum + p.access, 0);
+            const avgCVR = currentData.reduce((sum, p) => sum + p.cvr, 0) / currentData.length;
+            const avgUnitPrice = totalSales / totalOrders || 0;
+            const totalReviews = currentData.reduce((sum, p) => sum + p.reviewPosted, 0);
+            const avgReviewRate = totalOrders > 0 ? (totalReviews / totalOrders * 100) : 0;
+            
+            document.getElementById('totalSales').textContent = '¥' + totalSales.toLocaleString();
+            document.getElementById('totalOrders').textContent = totalOrders.toLocaleString();
+            document.getElementById('avgCVR').textContent = avgCVR.toFixed(2) + '%';
+            document.getElementById('totalAccess').textContent = totalAccess.toLocaleString();
+            document.getElementById('avgUnitPrice').textContent = '¥' + Math.round(avgUnitPrice).toLocaleString();
+            document.getElementById('totalProducts').textContent = currentData.length.toLocaleString();
+            document.getElementById('totalReviews').textContent = totalReviews.toLocaleString();
+            document.getElementById('avgReviewRate').textContent = avgReviewRate.toFixed(2) + '%';
+            
+            if (comparisonData) {
+                const compSales = comparisonData.reduce((sum, p) => sum + p.sales, 0);
+                const compOrders = comparisonData.reduce((sum, p) => sum + p.salesCount, 0);
+                const compAccess = comparisonData.reduce((sum, p) => sum + p.access, 0);
+                const compCVR = comparisonData.reduce((sum, p) => sum + p.cvr, 0) / comparisonData.length;
+                const compUnitPrice = compSales / compOrders || 0;
+                const compReviews = comparisonData.reduce((sum, p) => sum + p.reviewPosted, 0);
+                const compReviewRate = compOrders > 0 ? (compReviews / compOrders * 100) : 0;
+                
+                updateChangeIndicator('salesChange', totalSales, compSales, '円');
+                updateChangeIndicator('ordersChange', totalOrders, compOrders, '件');
+                updateChangeIndicator('accessChange', totalAccess, compAccess, '人');
+                updateChangeIndicator('cvrChange', avgCVR, compCVR, '%');
+                updateChangeIndicator('unitPriceChange', avgUnitPrice, compUnitPrice, '円');
+                updateChangeIndicator('productsChange', currentData.length, comparisonData.length, '商品');
+                updateChangeIndicator('reviewsChange', totalReviews, compReviews, '件');
+                updateChangeIndicator('reviewRateChange', avgReviewRate, compReviewRate, '%');
+            } else {
+                document.getElementById('salesChange').innerHTML = '<span>比較データなし</span>';
+                document.getElementById('ordersChange').innerHTML = '<span>件</span>';
+                document.getElementById('accessChange').innerHTML = '<span>人</span>';
+                document.getElementById('cvrChange').innerHTML = '<span>コンバージョン率</span>';
+                document.getElementById('unitPriceChange').innerHTML = '<span>1件あたり</span>';
+                document.getElementById('productsChange').innerHTML = '<span>アイテム</span>';
+                document.getElementById('reviewsChange').innerHTML = '<span>件</span>';
+                document.getElementById('reviewRateChange').innerHTML = '<span>投稿率</span>';
+            }
+        }
+        
+        function updateChangeIndicator(elementId, current, previous, unit) {
+            const element = document.getElementById(elementId);
+            const change = current - previous;
+            const changePercent = previous !== 0 ? ((change / previous) * 100) : 0;
+            
+            const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
+            const className = change > 0 ? 'positive' : change < 0 ? 'negative' : '';
+            
+            element.className = `card-change ${className}`;
+            element.innerHTML = `
+                <span>${arrow} ${Math.abs(changePercent).toFixed(1)}%</span>
+                <span style="font-size: 12px;">(${change > 0 ? '+' : ''}${Math.round(change).toLocaleString()}${unit})</span>
+            `;
+        }
+        
+        function renderTable(filteredData = null) {
+            if (!currentPeriod || !allData[currentPeriod]) return;
+            
+            const data = filteredData || allData[currentPeriod];
+            const comparisonData = comparisonPeriod ? allData[comparisonPeriod] : null;
+            
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            data.forEach((product, index) => {
+                const row = tbody.insertRow();
+                
+                let compProduct = null;
+                if (comparisonData) {
+                    compProduct = comparisonData.find(p => 
+                        p.productManagementNumber === product.productManagementNumber
+                    );
+                }
+                
+                const reviewRate = product.salesCount > 0 ? 
+                    (product.reviewPosted / product.salesCount * 100) : 0;
+                
+                const compReviewRate = compProduct && compProduct.salesCount > 0 ? 
+                    (compProduct.reviewPosted / compProduct.salesCount * 100) : null;
+                
+                row.innerHTML = `
+                    <td class="number">${index + 1}</td>
+                    <td class="product-name" title="${product.name}">${product.name}</td>
+                    <td><strong>${product.productManagementNumber}</strong></td>
+                    <td>${product.productNumber}</td>
+                    <td class="number">${formatWithComparison(product.sales, compProduct?.sales, '¥', true)}</td>
+                    <td class="number">${formatWithComparison(product.salesCount, compProduct?.salesCount, '', true)}</td>
+                    <td class="number">${formatWithComparison(product.access, compProduct?.access, '', true)}</td>
+                    <td class="percent">${formatWithComparison(product.cvr, compProduct?.cvr, '%', false)}</td>
+                    <td class="number">${formatWithComparison(product.unitPrice, compProduct?.unitPrice, '¥', true)}</td>
+                    <td class="number">${formatWithComparison(product.reviewPosted, compProduct?.reviewPosted, '', true)}</td>
+                    <td class="percent">${formatWithComparison(reviewRate, compReviewRate, '%', false)}</td>
+                    <td class="percent">${product.reviewScore.toFixed(2)}</td>
+                `;
+            });
+        }
+        
+        function formatWithComparison(current, previous, prefix, isNumber) {
+            if (!previous && previous !== 0) {
+                return isNumber ? 
+                    `${prefix}${current.toLocaleString()}` : 
+                    `${current.toFixed(2)}${prefix}`;
+            }
+            
+            const change = current - previous;
+            const changePercent = previous !== 0 ? ((change / previous) * 100) : 0;
+            
+            let changeClass = '';
+            let arrow = '';
+            if (change > 0) {
+                changeClass = 'positive-metric';
+                arrow = '↑';
+            } else if (change < 0) {
+                changeClass = 'negative-metric';
+                arrow = '↓';
+            } else {
+                changeClass = 'neutral-metric';
+                arrow = '→';
+            }
+            
+            const currentFormatted = isNumber ? 
+                `${prefix}${current.toLocaleString()}` : 
+                `${current.toFixed(2)}${prefix}`;
+            
+            return `
+                <div class="comparison-cell">
+                    <div>${currentFormatted}</div>
+                    <div class="comparison-value ${changeClass}">
+                        ${arrow} ${Math.abs(changePercent).toFixed(1)}%
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 検索機能
+        document.getElementById('searchBox').addEventListener('input', function(e) {
+            if (!currentPeriod) return;
+            
+            const searchTerm = e.target.value.toLowerCase().trim();
+            const filtered = allData[currentPeriod].filter(p => {
+                const name = (p.name || '').toLowerCase();
+                const managementNum = (p.productManagementNumber || '').toLowerCase();
+                const productNum = (p.productNumber || '').toLowerCase();
+                
+                return name.includes(searchTerm) || 
+                       managementNum.includes(searchTerm) ||
+                       productNum.includes(searchTerm);
+            });
+            renderTable(filtered);
+        });
+        
+        // ソート機能
+        document.getElementById('sortSelect').addEventListener('change', function(e) {
+            console.log('ソート機能が呼ばれました');
+            
+            if (!currentPeriod) {
+                console.log('currentPeriodがありません');
+                return;
+            }
+            
+            const value = e.target.value;
+            console.log('選択された値:', value);
+            
+            if (!value) {
+                renderTable();
+                return;
+            }
+            
+            const [field, order] = value.split('-');
+            console.log('フィールド:', field, 'オーダー:', order);
+            
+            let sorted = [...allData[currentPeriod]];
+            console.log('ソート前のデータ数:', sorted.length);
+            
+            const fieldMap = {
+                'sales': 'sales',
+                'cvr': 'cvr',
+                'access': 'access',
+                'reviewPosted': 'reviewPosted',
+                'review': 'reviewScore'
+            };
+            
+            const sortField = fieldMap[field];
+            console.log('ソートフィールド:', sortField);
+            
+            sorted.sort((a, b) => {
+                const aVal = a[sortField];
+                const bVal = b[sortField];
+                return order === 'desc' ? bVal - aVal : aVal - bVal;
+            });
+            
+            console.log('ソート後のデータ数:', sorted.length);
+            console.log('ソート後の最初の商品:', sorted[0]?.name, sorted[0]?.[sortField]);
+            
+            renderTable(sorted);
+        });
+        
+        // 商品推移分析
+        document.getElementById('openTrendBtn').addEventListener('click', () => {
+            document.getElementById('trendSection').style.display = 'block';
+            document.getElementById('trendSection').scrollIntoView({ behavior: 'smooth' });
+        });
+        
+        document.getElementById('closeTrendBtn').addEventListener('click', () => {
+            document.getElementById('trendSection').style.display = 'none';
+            document.getElementById('trendContent').style.display = 'none';
+            document.getElementById('trendSearchBox').value = '';
+        });
+        
+        document.getElementById('showTrendBtn').addEventListener('click', () => {
+            const searchTerm = document.getElementById('trendSearchBox').value.trim().toLowerCase();
+            
+            if (!searchTerm) {
+                alert('商品管理番号を入力してください');
+                return;
+            }
+            
+            if (Object.keys(allData).length < 2) {
+                alert('推移を表示するには2つ以上の期間のデータが必要です');
+                return;
+            }
+            
+            showProductTrend(searchTerm);
+        });
+        
+        function showProductTrend(productCode) {
+            const periods = Object.keys(allData).sort();
+            const trendData = [];
+            
+            periods.forEach(period => {
+                const product = allData[period].find(p => 
+                    p.productManagementNumber.toLowerCase() === productCode ||
+                    p.productNumber.toLowerCase() === productCode
+                );
+                
+                if (product) {
+                    const reviewRate = product.salesCount > 0 ? 
+                        (product.reviewPosted / product.salesCount * 100) : 0;
+                    
+                    trendData.push({
+                        period: period,
+                        periodLabel: formatPeriod(period),
+                        name: product.name,
+                        productManagementNumber: product.productManagementNumber,
+                        productNumber: product.productNumber,
+                        sales: product.sales,
+                        salesCount: product.salesCount,
+                        access: product.access,
+                        cvr: product.cvr,
+                        unitPrice: product.unitPrice,
+                        reviewPosted: product.reviewPosted,
+                        reviewRate: reviewRate,
+                        reviewScore: product.reviewScore
+                    });
+                }
+            });
+            
+            if (trendData.length === 0) {
+                alert('該当する商品が見つかりませんでした');
+                return;
+            }
+            
+            document.getElementById('trendProductName').textContent = 
+                `商品: ${trendData[0].name} (${trendData[0].productManagementNumber})`;
+            
+            renderTrendChart(trendData);
+            renderTrendTable(trendData);
+            
+            document.getElementById('trendContent').style.display = 'block';
+        }
+        
+        function renderTrendChart(data) {
+            const canvas = document.getElementById('trendChart');
+            const ctx = canvas.getContext('2d');
+            
+            if (trendChart) {
+                trendChart.destroy();
+            }
+            
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.periodLabel),
+                    datasets: [
+                        {
+                            label: '売上高（円）',
+                            data: data.map(d => d.sales),
+                            borderColor: 'rgb(191, 0, 0)',
+                            backgroundColor: 'rgba(191, 0, 0, 0.1)',
+                            yAxisID: 'y',
+                            tension: 0.3
+                        },
+                        {
+                            label: '売上件数',
+                            data: data.map(d => d.salesCount),
+                            borderColor: 'rgb(102, 126, 234)',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            yAxisID: 'y1',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'アクセス人数',
+                            data: data.map(d => d.access),
+                            borderColor: 'rgb(255, 193, 7)',
+                            backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                            yAxisID: 'y1',
+                            tension: 0.3
+                        },
+                        {
+                            label: '転換率（%）',
+                            data: data.map(d => d.cvr),
+                            borderColor: 'rgb(40, 167, 69)',
+                            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                            yAxisID: 'y1',
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: '商品パフォーマンス推移'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: '売上高（円）'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '件数・率'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderTrendTable(data) {
+            const tbody = document.getElementById('trendTableBody');
+            tbody.innerHTML = '';
+            
+            // データを降順（最新→古い）にソート
+            const sortedData = [...data].sort((a, b) => {
+                return parseInt(b.period) - parseInt(a.period);
+            });
+            
+            // 月ごとにデータを整理
+            const monthlyData = {};
+            sortedData.forEach(item => {
+                const month = parseInt(item.period.substring(4, 6));
+                if (!monthlyData[month]) {
+                    monthlyData[month] = {};
+                }
+                const year = item.period.substring(0, 4);
+                monthlyData[month][year] = item;
+            });
+            
+            // 最新の年月から順に表示
+            sortedData.forEach(item => {
+                const month = parseInt(item.period.substring(4, 6));
+                const currentYear = item.period.substring(0, 4);
+                
+                // 既に処理済みの年月はスキップ
+                if (!monthlyData[month] || !monthlyData[month][currentYear]) {
+                    return;
+                }
+                
+                const lastYear = String(parseInt(currentYear) - 1);
+                const twoYearsAgo = String(parseInt(currentYear) - 2);
+                
+                const currentData = monthlyData[month][currentYear];
+                const lastYearData = monthlyData[month][lastYear];
+                const twoYearsAgoData = monthlyData[month][twoYearsAgo];
+                
+                // 処理済みとしてマーク（削除）
+                delete monthlyData[month][currentYear];
+                
+                const row = tbody.insertRow();
+                row.style.borderBottom = '3px solid #e0e0e0';
+                
+                // 期間セル（複数年分を表示）
+                let periodHtml = `<div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${currentYear}年${month}月</div>`;
+                if (lastYearData) {
+                    periodHtml += `<div style="font-size: 13px; color: #6c757d;">${lastYear}年${month}月</div>`;
+                }
+                if (twoYearsAgoData) {
+                    periodHtml += `<div style="font-size: 13px; color: #6c757d;">${twoYearsAgo}年${month}月</div>`;
+                }
+                
+                // 各データセルを作成
+                row.innerHTML = `
+                    <td style="padding: 15px; vertical-align: top; position: sticky; left: 0; background: white; z-index: 5;">${periodHtml}</td>
+                    <td style="padding: 15px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; vertical-align: top;" title="${currentData.name}">${currentData.name}</td>
+                    <td style="padding: 15px; vertical-align: top;"><strong>${currentData.productManagementNumber}</strong></td>
+                    <td style="padding: 15px; vertical-align: top;">${currentData.productNumber}</td>
+                    ${createComparisonCell(currentData.sales, lastYearData?.sales, twoYearsAgoData?.sales, '¥', true)}
+                    ${createComparisonCell(currentData.salesCount, lastYearData?.salesCount, twoYearsAgoData?.salesCount, '', true)}
+                    ${createComparisonCell(currentData.access, lastYearData?.access, twoYearsAgoData?.access, '', true)}
+                    ${createComparisonCell(currentData.cvr, lastYearData?.cvr, twoYearsAgoData?.cvr, '%', false)}
+                    ${createComparisonCell(currentData.unitPrice, lastYearData?.unitPrice, twoYearsAgoData?.unitPrice, '¥', true)}
+                    ${createComparisonCell(currentData.reviewPosted, lastYearData?.reviewPosted, twoYearsAgoData?.reviewPosted, '', true)}
+                    ${createComparisonCell(currentData.reviewRate, lastYearData?.reviewRate, twoYearsAgoData?.reviewRate, '%', false)}
+                    ${createComparisonCell(currentData.reviewScore, lastYearData?.reviewScore, twoYearsAgoData?.reviewScore, '', false, true)}
+                `;
+            });
+        }
+        
+        function createComparisonCell(current, lastYear, twoYearsAgo, suffix, isNumber, isReviewScore = false) {
+            let html = '<td style="padding: 15px; text-align: right; vertical-align: top;">';
+            
+            // 今年のデータ
+            const currentFormatted = isNumber ? 
+                `${suffix}${current.toLocaleString()}` : 
+                isReviewScore ? current.toFixed(2) : `${current.toFixed(2)}${suffix}`;
+            html += `<div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">${currentFormatted}</div>`;
+            
+            // 前年のデータと比較
+            if (lastYear !== undefined && lastYear !== null) {
+                const change = current - lastYear;
+                const changePercent = lastYear !== 0 ? ((change / lastYear) * 100) : 0;
+                const color = change > 0 ? '#28a745' : change < 0 ? '#dc3545' : '#6c757d';
+                const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
+                
+                const lastYearFormatted = isNumber ? 
+                    `${suffix}${lastYear.toLocaleString()}` : 
+                    isReviewScore ? lastYear.toFixed(2) : `${lastYear.toFixed(2)}${suffix}`;
+                
+                html += `<div style="font-size: 13px; color: #495057; margin-bottom: 3px;">${lastYearFormatted}</div>`;
+                
+                if (isReviewScore) {
+                    // レビュー評価は差分をポイントで表示
+                    html += `<div style="font-size: 12px; color: ${color}; font-weight: 600;">${arrow} ${Math.abs(change).toFixed(2)}pt</div>`;
+                } else {
+                    html += `<div style="font-size: 12px; color: ${color}; font-weight: 600;">${arrow} ${Math.abs(changePercent).toFixed(1)}%</div>`;
+                }
+            }
+            
+            // 前々年のデータ（あれば参考表示）
+            if (twoYearsAgo !== undefined && twoYearsAgo !== null) {
+                const twoYearsAgoFormatted = isNumber ? 
+                    `${suffix}${twoYearsAgo.toLocaleString()}` : 
+                    isReviewScore ? twoYearsAgo.toFixed(2) : `${twoYearsAgo.toFixed(2)}${suffix}`;
+                
+                html += `<div style="font-size: 11px; color: #999; margin-top: 3px;">${twoYearsAgoFormatted}</div>`;
+            }
+            
+            html += '</td>';
+            return html;
+        }
+        
+        // CSVダウンロード
+        document.getElementById('downloadCSV').addEventListener('click', function() {
+            if (!currentPeriod) {
+                alert('期間を選択してください');
+                return;
+            }
+            
+            const data = allData[currentPeriod];
+            const comparisonData = comparisonPeriod ? allData[comparisonPeriod] : null;
+            
+            const headers = [
+                '順位', '商品名', '商品管理番号', '商品番号', '売上高', '売上件数', 'アクセス人数',
+                '転換率(%)', '客単価', 'レビュー獲得数', 'レビュー取得率(%)', 'レビュー評価', 'レビュー総数'
+            ];
+            
+            if (comparisonData) {
+                headers.push('前期売上高', '売上高増減率(%)', '前期アクセス', 'アクセス増減率(%)', '前期転換率', '転換率増減(pt)', 'レビュー獲得数増減');
+            }
+            
+            const csvRows = [headers.join(',')];
+            
+            data.forEach((product, index) => {
+                const compProduct = comparisonData?.find(p => 
+                    p.productManagementNumber === product.productManagementNumber
+                );
+                
+                const reviewRate = product.salesCount > 0 ? 
+                    (product.reviewPosted / product.salesCount * 100) : 0;
+                
+                const row = [
+                    index + 1,
+                    `"${product.name.replace(/"/g, '""')}"`,
+                    product.productManagementNumber,
+                    product.productNumber,
+                    product.sales,
+                    product.salesCount,
+                    product.access,
+                    product.cvr.toFixed(2),
+                    product.unitPrice,
+                    product.reviewPosted,
+                    reviewRate.toFixed(2),
+                    product.reviewScore.toFixed(2),
+                    product.reviewCount
+                ];
+                
+                if (comparisonData && compProduct) {
+                    const salesChange = compProduct.sales !== 0 ? 
+                        ((product.sales - compProduct.sales) / compProduct.sales * 100) : 0;
+                    const accessChange = compProduct.access !== 0 ? 
+                        ((product.access - compProduct.access) / compProduct.access * 100) : 0;
+                    const cvrChange = product.cvr - compProduct.cvr;
+                    const reviewChange = product.reviewPosted - compProduct.reviewPosted;
+                    
+                    row.push(
+                        compProduct.sales,
+                        salesChange.toFixed(2),
+                        compProduct.access,
+                        accessChange.toFixed(2),
+                        compProduct.cvr.toFixed(2),
+                        cvrChange.toFixed(2),
+                        reviewChange
+                    );
+                }
+                
+                csvRows.push(row.join(','));
+            });
+            
+            const csvContent = '\uFEFF' + csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `楽天市場データ分析_${currentPeriod}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+        
+        // データ保存
+        document.getElementById('saveData').addEventListener('click', function() {
+            try {
+                localStorage.setItem('rakutenData', JSON.stringify(allData));
+                alert('データを保存しました！');
+            } catch (e) {
+                alert('データの保存に失敗しました: ' + e.message);
+            }
+        });
+        
+        // ページ読み込み時に保存データを復元
+        window.addEventListener('load', function() {
+            try {
+                const savedData = localStorage.getItem('rakutenData');
+                if (savedData) {
+                    allData = JSON.parse(savedData);
+                    updatePeriodButtons();
+                    updateFileCards();
+                    
+                    const periods = Object.keys(allData).sort().reverse();
+                    if (periods.length > 0) {
+                        currentPeriod = periods[0];
+                        updateDisplay();
+                    }
+                }
+            } catch (e) {
+                console.error('保存データの読み込みに失敗:', e);
+            }
+        });
+    </script>
+</body>
+</html>
